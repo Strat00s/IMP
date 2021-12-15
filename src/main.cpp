@@ -3,43 +3,82 @@
 #include <freertos/queue.h>
 #include <freertos/task.h>
 
-QueueHandle_t queue;
+#define BUTTON (23)
 
+QueueHandle_t queue;    //queue for sending data between tasks
+
+//led blink task
 void ledTask(void *params) {
-    int button = 0;
+    int cnt = 0;
+
     while(true) {
+        //read from queue when something is waiting
         if (uxQueueMessagesWaiting(queue)) {
-            xQueueReceive(queue, &button, 0);
+            xQueueReceive(queue, &cnt, 0);
+            //digitalWrite(LED_BUILTIN, HIGH);
         }
-        for (int i = 0; i < button*2; i ++) {
+        //blink every second while waiting for button to be depressed
+        if (cnt < 0) {
+                digitalWrite(LED_BUILTIN, HIGH);
+                vTaskDelay(500);
+                digitalWrite(LED_BUILTIN, LOW);
+                vTaskDelay(500);
+        }
+        //blink every half second on start
+        else if (cnt == 0) {
             digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
-            printf("%d %d\n", i, digitalRead(LED_BUILTIN));
-            vTaskDelay(100);
+            vTaskDelay(250);
         }
-        vTaskDelay(1000);
+        //blink as many times as for how long the button was pressed
+        else {
+            for (int i = 0; i < cnt*2; i ++) {
+                digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+                vTaskDelay(100);
+            }
+            vTaskDelay(1000);
+        }
     }
 }
 
+//helper function to add data to queue
 void addToQueue(int data) {
-    xQueueSend(queue, &data, portMAX_DELAY);
+    xQueueSend(queue, &data, 0);
 }
 
+//button task
 void buttonTask(void *params) {
+    int cnt = 0;
+
     while(true) {
-        if (!digitalRead(16)) addToQueue(1);
-        if (!digitalRead(17)) addToQueue(5);
-        vTaskDelay(100);
+        //on button press
+        if (!digitalRead(BUTTON)) {
+            addToQueue(-1); //send -1 to start blinking every second while button is pressed
+
+            //count up every second while the button is pressed
+            while(!digitalRead(BUTTON)) {
+                cnt++;
+                vTaskDelay(1000);
+            }
+
+            addToQueue(cnt);    //send count to queue
+            cnt = 0;            //reset queue
+        }
+
+        vTaskDelay(1);  //task is alive for watchdog
     }
 }
 
 void setup() {
-    pinMode(LED_BUILTIN, OUTPUT);
-    pinMode(16, INPUT_PULLUP);
-    pinMode(17, INPUT_PULLUP);
-    queue = xQueueCreate(1, sizeof(int));
-    xTaskCreate(ledTask, "led_task", 10000, NULL, 1, NULL);
-    xTaskCreate(buttonTask, "button_task", 10000, NULL, 1, NULL);
+    pinMode(LED_BUILTIN, OUTPUT);   //use builtin led as output
+    pinMode(BUTTON, INPUT_PULLUP);  //use button on pin 23 as input
+
+    queue = xQueueCreate(1, sizeof(int));   //create queue with size of 1 int
+
+    //create tasks
+    xTaskCreate(ledTask, "led_task", 100000, NULL, 1, NULL);
+    xTaskCreate(buttonTask, "button_task", 100000, NULL, 1, NULL);
 }
 
+//nothing to do here
 void loop() {
 }
