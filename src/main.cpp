@@ -13,22 +13,23 @@ void ledTask(void *params) {
 
     while(true) {
         //read from queue when something is waiting
-        if (uxQueueMessagesWaiting(queue)) {
+        if (uxQueueMessagesWaiting(queue))
             xQueueReceive(queue, &cnt, 0);
-            //digitalWrite(LED_BUILTIN, HIGH);
-        }
+
         //blink every second while waiting for button to be depressed
         if (cnt < 0) {
-                digitalWrite(LED_BUILTIN, HIGH);
-                vTaskDelay(500);
-                digitalWrite(LED_BUILTIN, LOW);
-                vTaskDelay(500);
+            digitalWrite(LED_BUILTIN, HIGH);
+            vTaskDelay(500);
+            digitalWrite(LED_BUILTIN, LOW);
+            vTaskDelay(500);
         }
+
         //blink every half second on start
         else if (cnt == 0) {
             digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
             vTaskDelay(250);
         }
+
         //blink as many times as for how long the button was pressed
         else {
             for (int i = 0; i < cnt*2; i ++) {
